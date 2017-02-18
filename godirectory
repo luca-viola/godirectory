@@ -1,0 +1,49 @@
+#!/bin/bash
+
+function gd()
+{
+  local indexFile="$HOME/.directory.idx"
+
+  if [ $# -eq 0 ]; then
+      echo "Go Directory usage:"
+      echo
+      echo "gd [prints this help]"
+      echo "gd --rescan [rebuilds the index]"
+      echo "gd dir [cycle jumps to the next  directory containing the" 
+      echo "        string \"dir\" in the last part of the path]"
+      echo
+      return 
+  fi
+  if [ "$1" == "--rescan" ]; then
+    rm $indexFile
+  fi
+  if [ -f $indexFile ] ; then
+    local match=`echo -n $1 | tr "[:upper:]" "[:lower:]"` 
+    local idx=1
+    local cwd=`pwd`
+    shopt -s nocasematch
+    if [[ "$cwd" =~ ^.*$match.*$ ]]; then
+      local lines=`grep -n -e "^.*$match.*;\/" $indexFile`
+      local n=`echo "$lines" | wc -l`
+      idx=`echo "$lines" | grep -n "$cwd" | cut -d ":" -f 1 | head -n 1`
+      let idx=idx+1
+      if [ $idx -gt $n ]; then
+        idx=1
+      fi
+    fi
+    local entry=`grep -n -e "^.*$match.*;\/" $indexFile | head -n $idx | tail -n 1`
+    local path=`echo $entry | cut -d ":" -f 2 | cut -d ";" -f 2`
+    if [ -n "$path" ]; then
+      cd "$path"
+    else
+      echo "No directory leaf contains \"$match\" in the index. Try with a rescan first." > /dev/stderr
+      return -1
+    fi
+  else
+    echo "Building directory index..."
+    find / -type d 2>/dev/null | sort > $indexFile.tmp
+    cat $indexFile.tmp | awk '{ FS="/";  print tolower($NF) ";" $0 }' > $indexFile
+    rm $indexFile.tmp
+  fi
+  shopt -u nocasematch 
+}
